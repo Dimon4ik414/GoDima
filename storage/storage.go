@@ -21,6 +21,10 @@ func NewStore[K comparable, V any](capacity int) * Store[K, V]{
 	}
 }
 
+func convertToOrder(Value any) enum.Order{
+	return Value.(enum.Order)
+}
+
 func (store *Store[K, V]) Put(key K, value V) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
