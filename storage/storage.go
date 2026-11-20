@@ -51,16 +51,18 @@ func (store *Store[K, V]) Delete(key K, value V) bool {
 func (store *Store[K, V]) Update(key K, modif func(V) V, logger *slog.Logger) (V, bool) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
-
+	// Проверяем, есть ли ключ в хранилищ
 	value, ok := store.items[key]
 	if !ok {
 		var zero V
 		return zero, false
 	}
-
+	// Вычисляем новое значение
 	UpdatedValue := modif(value)
+
+	// Логируем новое состояние заказа
 	enum.LogOrderState(convertToOrder(UpdatedValue), logger)
-	
+
 	return UpdatedValue, true
 }
 
