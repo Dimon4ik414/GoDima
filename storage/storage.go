@@ -1,12 +1,13 @@
 package storage
 
 import (
+	"financialExchange/enum"
+	"log/slog"
 	"sync"
 	"time"
-	"financialExchange/enum"
 )
 
-// sync.Mutex полностью блокирует доступ и для чтения и для записи. 
+// sync.Mutex полностью блокирует доступ и для чтения и для записи.
 // RWMutex позволяет потокам читать данные одновременно, но запись осуществляется только одним потоком
 
 type Store[K comparable, V any] struct {
@@ -47,7 +48,7 @@ func (store *Store[K, V]) Delete(key K, value V) bool {
 	return true
 }
 
-func (store *Store[K, V]) Update(key K, modif func(V) V) (V, bool) {
+func (store *Store[K, V]) Update(key K, modif func(V) V, logger *slog.Logger) (V, bool) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
 
@@ -58,6 +59,8 @@ func (store *Store[K, V]) Update(key K, modif func(V) V) (V, bool) {
 	}
 
 	UpdatedValue := modif(value)
+	enum.LogOrderState(convertToOrder(UpdatedValue), logger)
+	
 	return UpdatedValue, true
 }
 
