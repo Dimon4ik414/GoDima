@@ -3,6 +3,7 @@ package main
 import (
 	"financialExchange/storage"
 	"financialExchange/enum"
+
 	"fmt"
 	"log/slog"
 	"os"
@@ -63,6 +64,10 @@ func main(){
 						CreatedAt: time.Now().UTC(),
 						UpdatedAt: time.Now().UTC(),
 							}
+	enum.LogOrderState(orderBuy, logger)
+
+
+
 
 	orderSell := 	enum.Order{
 						ID: uuidOrder2,
@@ -78,8 +83,16 @@ func main(){
 						UpdatedAt: time.Now().UTC(),
 						}
 
-	orderBook.Put(uuidOrder1, orderBuy)
-	orderBook.Put(uuidOrder2, orderSell)
+	fmt.Scanln()
+orderBook.Put(uuidOrder1, orderBuy)
+orderBook.Put(uuidOrder2, orderSell)
+
+fmt.Scanln()
+
+orderSell = storage.ProcessSellOrder(orderSell, orderBook, logger)
+orderBook.Put(uuidOrder2, orderSell)
+
+	
 
 	logger.Info("Зарегистрирована сделка",
 			slog.String("Type", orderBuy.Type.String()),

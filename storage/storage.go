@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+	"uuid"
+	
 )
 
 // sync.Mutex полностью блокирует доступ и для чтения и для записи.
@@ -23,7 +25,7 @@ func NewStore[K comparable, V any](capacity int) * Store[K, V]{
 
 func convertToOrder(Value any) enum.Order{
 	return Value.(enum.Order)
-}
+} //из any в (enum.Order)
 
 func (store *Store[K, V]) Put(key K, value V) {
 	store.mutex.Lock()
@@ -173,55 +175,50 @@ func (s *Storage[T]) Items() []T {
 }
 
 
-func ProcessSellOrder(sellOrder enum.Order, book *IndexedStorage[uuid.UUID, enum.Order]) enum.Order {
-	// Если ордер на продажу не активен — ничего не делаем, возвращаем как есть
+func ProcessSellOrder(sellOrder enum.Order, book *IndexedStorage[uuid.UUID, enum.Order], logger *slog.Logger) enum.Order {
 	if !sellOrder.IsActive() {
 		return sellOrder
 	}
 
-	// Перебираем все ордера в книге (в порядке их добавления)
 	for _, buyOrder := range book.Ordered() {
-		// Пропускаем неактивные ордера, не покупки и ордера с другой валютой
 		if !buyOrder.IsActive() || buyOrder.Side != enum.SideBuy || buyOrder.Symbo != sellOrder.Symbo {
 			continue
 		}
-		// Пропускаем, если покупатель предлагает цену ниже, чем мы хотим продать
 		if buyOrder.Price < sellOrder.Price {
 			continue
 		}
 
-		// Считаем, сколько можем обменять: минимум из остатков обоих ордеров
 		quantity := buyOrder.Remaining()
 		if sellOrder.Remaining() < quantity {
 			quantity = sellOrder.Remaining()
 		}
 
-		// Увеличиваем исполненный объём у ордера на покупку
+		// Обновляем ордер на покупку
 		buyOrder.Filled += quantity
-		// Обновляем статус: полностью исполнен или частично
 		if buyOrder.Remaining() == 0 {
 			buyOrder.Status = enum.OrderStatusFilled
 		} else {
 			buyOrder.Status = enum.OrderStatusPartiallyFilled
 		}
 		buyOrder.UpdatedAt = time.Now().UTC()
-		// Сохраняем обновлённый ордер обратно в книгу
 		book.Put(buyOrder.ID, buyOrder)
+		enum.LogOrderState(buyOrder, logger) // Логируем новое состояние ордера на покупку
 
-		// Увеличиваем исполненный объём у ордера на продажу
+		// Обновляем ордер на продажу
 		sellOrder.Filled += quantity
-		// Обновляем статус: полностью исполнен или частично
 		if sellOrder.Remaining() == 0 {
 			sellOrder.Status = enum.OrderStatusFilled
 		} else {
 			sellOrder.Status = enum.OrderStatusPartiallyFilled
 		}
 		sellOrder.UpdatedAt = time.Now().UTC()
+		enum.LogOrderState(sellOrder, logger) // Логируем новое состояние ордера на продажу
 
-		// Если ордер на продажу полностью исполнен — дальше искать не нужно
 		if sellOrder.Remaining() == 0 {
 			break
 		}
 	}
 	return sellOrder
 }
+
+
