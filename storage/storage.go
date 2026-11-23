@@ -35,14 +35,14 @@ func (store *Store[K, V]) Put(key K, value V) {
 }
 
 func (store *Store[K, V]) Get(key K) (V, bool) {
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
+	store.mutex.RLock()
+	defer store.mutex.RUnlock()
 
 	value, ok := store.items[key]
 	return value, ok
 }
 
-func (store *Store[K, V]) Delete(key K, value V) bool {
+func (store *Store[K, V]) Delete(key K) bool {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
 	
@@ -54,7 +54,7 @@ func (store *Store[K, V]) Delete(key K, value V) bool {
 	return true
 }
 
-func (store *Store[K, V]) Update(key K, modif func(V) V, logger *slog.Logger) (V, bool) {
+func (store *Store[K, V]) Update(key K, modif func(V) V) (V, bool) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
 	// Проверяем, есть ли ключ в хранилищ
@@ -63,12 +63,10 @@ func (store *Store[K, V]) Update(key K, modif func(V) V, logger *slog.Logger) (V
 		var zero V
 		return zero, false
 	}
-	// Вычисляем новое значение
+	
 	UpdatedValue := modif(value)
-
-	// Логируем новое состояние заказа
-	enum.LogOrderState(convertToOrder(UpdatedValue), logger)
-
+	store.items[key] = UpdatedValue
+	
 	return UpdatedValue, true
 }
 
