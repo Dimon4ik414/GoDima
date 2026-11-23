@@ -81,16 +81,30 @@ type Order struct {
 	UpdatedAt time.Time
 }
 
-func LogOrderState(order Order, logger *slog.Logger ){
-    logger.Info("Статус сделки ",
-        slog.String("Type", order.Side.String()),
-        slog.String("Type", order.Type.String()),
+func (order Order)LogValue()slog.Value{
+    return slog.GroupValue(
+		slog.String("ID", order.ID.String()),
+		slog.String("Type", order.Type.String()),
+        slog.String("Side", order.Side.String()),
         slog.String("Status: ", order.Status.String()),
         slog.Float64("Value:", order.Price),
-        slog.Float64("Quantity", order.Quantity),
-        slog.String("Symbo", order.Symbo),
-        slog.String("TraderID", order.TraderID.String()),
-        slog.String("Date ", order.UpdatedAt.String()))
+        slog.Float64("Quantity:", order.Quantity),
+		slog.Float64("Filled:", order.Filled),
+        slog.String("Symbo:", order.Symbo),
+        slog.String("TraderID:", order.TraderID.String()),
+        slog.String("Updated at: ", order.UpdatedAt.String()))
+}
+
+func (order Order) Fill(count float64)  {
+	 order.Filled += count 
+	 order.UpdatedAt = time.Now().UTC()
+//пробема чисел с плавающей точкой 
+	 if order.Filled >= order.Quantity{
+		order.Status = OrderStatusFilled
+
+	 }else {
+		order.Status = OrderStatusPartiallyFilled
+	 }
 }
 
 

@@ -64,7 +64,7 @@ func main(){
 						CreatedAt: time.Now().UTC(),
 						UpdatedAt: time.Now().UTC(),
 							}
-	enum.LogOrderState(orderBuy, logger)
+	// enum.LogOrderState(orderBuy, logger)
 
 
 

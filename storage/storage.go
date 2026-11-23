@@ -200,7 +200,7 @@ func ProcessSellOrder(sellOrder enum.Order, book *IndexedStorage[uuid.UUID, enum
 		}
 		buyOrder.UpdatedAt = time.Now().UTC()
 		book.Put(buyOrder.ID, buyOrder)
-		enum.LogOrderState(buyOrder, logger) // Логируем новое состояние ордера на покупку
+		// enum.LogOrderState(buyOrder, logger) // Логируем новое состояние ордера на покупку
 
 		// Обновляем ордер на продажу
 		sellOrder.Filled += quantity
@@ -210,7 +210,7 @@ func ProcessSellOrder(sellOrder enum.Order, book *IndexedStorage[uuid.UUID, enum
 			sellOrder.Status = enum.OrderStatusPartiallyFilled
 		}
 		sellOrder.UpdatedAt = time.Now().UTC()
-		enum.LogOrderState(sellOrder, logger) // Логируем новое состояние ордера на продажу
+		// enum.LogOrderState(sellOrder, logger) // Логируем новое состояние ордера на продажу
 
 		if sellOrder.Remaining() == 0 {
 			break
