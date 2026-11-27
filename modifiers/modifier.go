@@ -1,12 +1,12 @@
-package modifier
+package modifiers
 
 import (
     "financialExchange/enum"
 )
 
 //функция обертки которая необходима для анонимной функции в качестве аргумента  
-func ModifierForOrder(sellerQuantity float64) func(*enum.Order) *enum.Order {
-    return func(order *enum.Order) *enum.Order {
+func ModifierForOrder(sellerQuantity float64) func(enum.Order) enum.Order {
+    return func(order enum.Order) enum.Order {
         order.Filled += sellerQuantity
 
         if order.Filled >= order.Quantity {
