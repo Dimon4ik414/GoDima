@@ -112,49 +112,52 @@ orderBook.Put(uuidOrder2, orderSell)
 
 
 
-func matchOrders(storage *storage.Store[uuid.UUID, enum.Order], buyID, sellID uuid.UUID, logger *slog.Logger){
+func matchOrders(storage *storage.Store[uuid.UUID, enum.Order], buyID, sellID uuid.UUID, logger *slog.Logger) {
+	// Получение ордера на покупку и продажу из хранилища
 	buyOrder, buyOk := storage.Get(buyID)
 	sellOrder, sellOk := storage.Get(sellID)
-
-	if !buyOk || !sellOk{
+	if !buyOk || !sellOk {
 		logger.Error("Возникли ошибки с поиском заказов в хранилище")
-		return
+		return 
 	}
 
-	if buyOrder.Symbo != sellOrder.Symbo{
+	// Проврка совпадений торговых валют
+	if buyOrder.Symbo != sellOrder.Symbo {
 		logger.Warn("Сделка не может быть осуществлена в связи несовпадением валют")
 		return
 	}
-	
-	if buyOrder.Status == enum.OrderStatusFilled || sellOrder.Status == enum.OrderStatusFilled{
+
+	// Проверка что оба ордера еще не исполнены до конца 
+	if buyOrder.Status == enum.OrderStatusFilled || sellOrder.Status == enum.OrderStatusFilled {
 		logger.Warn("Заказы уже завершены")
 		return
 	}
 
-	if buyOrder.Price < sellOrder.Price{
+	// Проверка что цена покупателя не ниже цены продавца
+	if buyOrder.Price < sellOrder.Price {
 		logger.Info("Сделка не может быть совершена из-за несовпадения цен")
 		return
 	}
 
+	// Определение объема сделки 
 	quantityTrade := min(buyOrder.Remaining(), sellOrder.Remaining())
 
-	updatedBuyOrder, ok:= storage.Update(buyID, modifiers.ModifierForOrder(quantityTrade))
-
-	if !ok{
+	// Обновление остатков и статусов обоих ордеров в хранилище
+	updatedBuyOrder, ok := storage.Update(buyID, modifiers.ModifierForOrder(quantityTrade))
+	if !ok {
 		logger.Error("Произошла ошибка при обновлении buyOrder")
 	}
 
-	updatedSellOrder, ok:= storage.Update(sellID, modifiers.ModifierForOrder(quantityTrade))
-
-	if !ok{
+	updatedSellOrder, ok := storage.Update(sellID, modifiers.ModifierForOrder(quantityTrade))
+	if !ok {
 		logger.Error("Произошла ошибка при обновлении sellOrder")
 	}
 
+	// Логирование итогов обновления и детали совершенной сделки
 	logger.Info("Заявки обнавлены", "buy_order", updatedBuyOrder, "sell_order", updatedSellOrder)
-
 	logger.Info("Сделка успешно проведена",
-				slog.Float64("quantity", quantityTrade),
-				slog.Any("buy_order", updatedBuyOrder),
-				slog.Any("sell_order", updatedSellOrder),
-	)	
+		slog.Float64("quantity", quantityTrade),
+		slog.Any("buy_order", updatedBuyOrder),
+		slog.Any("sell_order", updatedSellOrder),
+	)
 }
