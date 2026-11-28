@@ -95,6 +95,20 @@ func (order Order)LogValue()slog.Value{
         slog.String("Updated at: ", order.UpdatedAt.String()))
 }
 
+func (trade Trade) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("ID", trade.ID.String()),
+		slog.String("Symbol", trade.Symbol),
+		slog.String("BuyOrderID", trade.BuyOrderID.String()),
+		slog.String("SellOrderID", trade.SellOrderID.String()),
+		slog.String("BuyerID", trade.BuyerID.String()),
+		slog.String("SellerID", trade.SellerID.String()),
+		slog.Float64("Price", trade.Price),
+		slog.Float64("Quantity", trade.Quantity),
+		slog.String("ExecutedAt", trade.ExecutedAt.String()),
+	)
+}
+
 func (order Order) Fill(count float64)  {
 	 order.Filled += count 
 	 order.UpdatedAt = time.Now().UTC()
