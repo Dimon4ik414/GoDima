@@ -1,145 +1,97 @@
 package main
 
 import (
-	"financialExchange/storage"
 	"financialExchange/enum"
 	"financialExchange/modifiers"
+	"financialExchange/storage"
 
-	"fmt"
+	// "fmt"
 	"log/slog"
 	"os"
-	"uuid"
 	"time"
+	"uuid"
 )
 
-func main(){
+func main() {
 	options := slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}
 	handler := slog.NewJSONHandler(os.Stdout, &options)
 	logger := slog.New(handler)
 
-	// currencies := storage.NewStorage[string](5)
-	// currencies.Add("BTC-RUB")
-	// currencies.Add("ETH-RUB")
-	// currencies.Add("USD-RUB")
-	// currencies.Add("USD-RUB")
-
-	// lengthOfCurrencies := currencies.Length()
-	// logger.Info("Работа с валютами:",
-	//  slog.Int("Количество уникальных комбинаций", lengthOfCurrencies))
-
-	// traderStore := storage.NewStore[uuid.UUID, float64](10)
-	// traderID := uuid.NewV7()
-
-	// traderStore.Put(traderID, 50000.0004)
-	// logger.Info("Новый трейдер добавлен в хранилище:",
-	//  slog.String("UUID", traderID.String()),
-	// slog.Float64("Начальный баланс", 50000.0004))
-
-
-	// if balance, ok := traderStore.Get(traderID); ok{
-	// 	logger.Info("поиск в хранилище:",
-	//  	slog.String("найден трейдер с UUID", traderID.String()),
-	// 	slog.Float64("его текущий баланс", balance))
-	// }else{
-	// 	logger.Error("элемент не найден в хранилище:",
-	//  	slog.String("проверьте UUID", traderID.String()),)
-	// }
-
-	orderBook := storage.NewIndexedStorage[uuid.UUID, enum.Order](100)
+	orderStorage := storage.NewStore[uuid.UUID, enum.Order](100)
+	tradeStorage := storage.NewStore[uuid.UUID, enum.Trade](100)
 
 	uuidOrder1 := uuid.NewV7()
 	uuidOrder2 := uuid.NewV7()
 
-	orderBuy := 	enum.Order{
-						ID: uuidOrder1,
-						TraderID: uuid.NewV4(),
-						Side: enum.SideBuy,
-						Type: enum.OrderTypeLimit,
-						Symbo: "USD",
-						Price: 1000.00,
-						Quantity: 2.00,
-						Filled: 0.00,
-						Status: enum.OrderStatusNew,
-						CreatedAt: time.Now().UTC(),
-						UpdatedAt: time.Now().UTC(),
-							}
-	// enum.LogOrderState(orderBuy, logger)
+	orderBuy := enum.Order{
+		ID:        uuidOrder1,
+		TraderID:  uuid.NewV4(),
+		Side:      enum.SideBuy,
+		Type:      enum.OrderTypeLimit,
+		Symbo:     "USD",
+		Price:     1000.00,
+		Quantity:  2.00,
+		Filled:    0.00,
+		Status:    enum.OrderStatusNew,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	orderSell := enum.Order{
+		ID:        uuidOrder2,
+		TraderID:  uuid.NewV4(),
+		Side:      enum.SideSell,
+		Type:      enum.OrderTypeLimit,
+		Symbo:     "USD",
+		Price:     1000.00,
+		Quantity:  2.00,
+		Filled:    0.00,
+		Status:    enum.OrderStatusNew,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
 
 
+	orderStorage.Put(uuidOrder1, orderBuy)
+	orderStorage.Put(uuidOrder2, orderSell)
 
 
-	orderSell := 	enum.Order{
-						ID: uuidOrder2,
-						TraderID: uuid.NewV4(),
-						Side: enum.SideSell,
-						Type: enum.OrderTypeLimit,
-						Symbo: "USD",
-						Price: 1000.00,
-						Quantity: 2.00,
-						Filled: 0.00,
-						Status: enum.OrderStatusNew,
-						CreatedAt: time.Now().UTC(),
-						UpdatedAt: time.Now().UTC(),
-						}
-
-	fmt.Scanln()
-orderBook.Put(uuidOrder1, orderBuy)
-orderBook.Put(uuidOrder2, orderSell)
-
-fmt.Scanln()
-
-orderSell = storage.ProcessSellOrder(orderSell, orderBook, logger)
-orderBook.Put(uuidOrder2, orderSell)
-
-	
-
-	logger.Info("Зарегистрирована сделка",
-			slog.String("Type", orderBuy.Type.String()),
-			slog.Float64("Value:", orderBuy.Price),
-			slog.Float64("Quantity", orderBuy.Quantity),
-			slog.String("Symbo", orderBuy.Symbo),
-			slog.String("TraderID", orderBuy.TraderID.String()))
-								
-
-	fmt.Scanln()
-
-	fmt.Scanln()
-	
-
+	trade, ok := matchOrders(orderStorage, tradeStorage, uuidOrder1, uuidOrder2, logger)
+	if ok {
+		logger.Info("Зарегистрирована сделка", slog.Any("trade", trade))
+	}
 }
 
-
-
-func matchOrders(storage *storage.Store[uuid.UUID, enum.Order],tradeStorage *storage.Store[uuid.UUID, enum.Trade], buyID, sellID uuid.UUID, logger *slog.Logger)(enum.Trade, bool){
+	func matchOrders(storage *storage.Store[uuid.UUID, enum.Order], tradeStorage *storage.Store[uuid.UUID, enum.Trade], buyID, sellID uuid.UUID, logger *slog.Logger) (enum.Trade, bool) {
 	// Получение ордера на покупку и продажу из хранилища
 	buyOrder, buyOk := storage.Get(buyID)
 	sellOrder, sellOk := storage.Get(sellID)
 	if !buyOk || !sellOk {
 		logger.Error("Возникли ошибки с поиском заказов в хранилище")
-		return enum.Trade{},false
+		return enum.Trade{}, false
 	}
 
-	// Проврка совпадений торговых валют
+	// Проверка совпадений торговых валют
 	if buyOrder.Symbo != sellOrder.Symbo {
 		logger.Warn("Сделка не может быть осуществлена в связи несовпадением валют")
-		return enum.Trade{},false
+		return enum.Trade{}, false
 	}
 
-	// Проверка что оба ордера еще не исполнены до конца 
+	// Проверка что оба ордера еще не исполнены до конца
 	if buyOrder.Status == enum.OrderStatusFilled || sellOrder.Status == enum.OrderStatusFilled {
 		logger.Warn("Заказы уже завершены")
-		return enum.Trade{},false
+		return enum.Trade{}, false
 	}
 
 	// Проверка что цена покупателя не ниже цены продавца
 	if buyOrder.Price < sellOrder.Price {
 		logger.Info("Сделка не может быть совершена из-за несовпадения цен")
-		return enum.Trade{},false
+		return enum.Trade{}, false
 	}
 
-	// Определение объема сделки 
+	// Определение объема сделки
 	quantityTrade := min(buyOrder.Remaining(), sellOrder.Remaining())
 
 	// Обновление остатков и статусов обоих ордеров в хранилище
@@ -155,9 +107,9 @@ func matchOrders(storage *storage.Store[uuid.UUID, enum.Order],tradeStorage *sto
 		return enum.Trade{}, false
 	}
 
-	//значение структуры 
+	//значение структуры
 	trade := enum.Trade{
-		ID:          uuid.New(), 
+		ID:          uuid.New(),
 		Symbol:      buyOrder.Symbo,
 		BuyOrderID:  buyOrder.ID,
 		SellOrderID: sellOrder.ID,
@@ -168,16 +120,15 @@ func matchOrders(storage *storage.Store[uuid.UUID, enum.Order],tradeStorage *sto
 		ExecutedAt:  time.Now().UTC(),
 	}
 
-
-	tradeStorage.Put(trade.ID, trade)//возврат и хранение 
+	tradeStorage.Put(trade.ID, trade) //возврат и хранение
 
 	// Логирование итогов обновления и детали совершенной сделки
 	logger.Info("Заявки обнавлены", "buy_order", updatedBuyOrder, "sell_order", updatedSellOrder)
 	logger.Info("Сделка успешно проведена",
+		slog.Any("trade", trade),
 		slog.Float64("quantity", quantityTrade),
 		slog.Any("buy_order", updatedBuyOrder),
 		slog.Any("sell_order", updatedSellOrder),
 	)
-	return trade, true 
+	return trade, true
 }
-
