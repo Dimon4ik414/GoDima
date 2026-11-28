@@ -112,31 +112,31 @@ orderBook.Put(uuidOrder2, orderSell)
 
 
 
-func matchOrders(storage *storage.Store[uuid.UUID, enum.Order], buyID, sellID uuid.UUID, logger *slog.Logger) {
+func matchOrders(storage *storage.Store[uuid.UUID, enum.Order],tradeStorage *storage.Store[uuid.UUID, enum.Trade], buyID, sellID uuid.UUID, logger *slog.Logger)(enum.Trade, bool){
 	// Получение ордера на покупку и продажу из хранилища
 	buyOrder, buyOk := storage.Get(buyID)
 	sellOrder, sellOk := storage.Get(sellID)
 	if !buyOk || !sellOk {
 		logger.Error("Возникли ошибки с поиском заказов в хранилище")
-		return 
+		return enum.Trade{},false
 	}
 
 	// Проврка совпадений торговых валют
 	if buyOrder.Symbo != sellOrder.Symbo {
 		logger.Warn("Сделка не может быть осуществлена в связи несовпадением валют")
-		return
+		return enum.Trade{},false
 	}
 
 	// Проверка что оба ордера еще не исполнены до конца 
 	if buyOrder.Status == enum.OrderStatusFilled || sellOrder.Status == enum.OrderStatusFilled {
 		logger.Warn("Заказы уже завершены")
-		return
+		return enum.Trade{},false
 	}
 
 	// Проверка что цена покупателя не ниже цены продавца
 	if buyOrder.Price < sellOrder.Price {
 		logger.Info("Сделка не может быть совершена из-за несовпадения цен")
-		return
+		return enum.Trade{},false
 	}
 
 	// Определение объема сделки 
@@ -146,12 +146,30 @@ func matchOrders(storage *storage.Store[uuid.UUID, enum.Order], buyID, sellID uu
 	updatedBuyOrder, ok := storage.Update(buyID, modifiers.ModifierForOrder(quantityTrade))
 	if !ok {
 		logger.Error("Произошла ошибка при обновлении buyOrder")
+		return enum.Trade{}, false
 	}
 
 	updatedSellOrder, ok := storage.Update(sellID, modifiers.ModifierForOrder(quantityTrade))
 	if !ok {
 		logger.Error("Произошла ошибка при обновлении sellOrder")
+		return enum.Trade{}, false
 	}
+
+	//значение структуры 
+	trade := enum.Trade{
+		ID:          uuid.New(), 
+		Symbol:      buyOrder.Symbo,
+		BuyOrderID:  buyOrder.ID,
+		SellOrderID: sellOrder.ID,
+		BuyerID:     buyOrder.TraderID,
+		SellerID:    sellOrder.TraderID,
+		Price:       sellOrder.Price,
+		Quantity:    quantityTrade,
+		ExecutedAt:  time.Now().UTC(),
+	}
+
+
+	tradeStorage.Put(trade.ID, trade)//возврат и хранение 
 
 	// Логирование итогов обновления и детали совершенной сделки
 	logger.Info("Заявки обнавлены", "buy_order", updatedBuyOrder, "sell_order", updatedSellOrder)
@@ -160,4 +178,6 @@ func matchOrders(storage *storage.Store[uuid.UUID, enum.Order], buyID, sellID uu
 		slog.Any("buy_order", updatedBuyOrder),
 		slog.Any("sell_order", updatedSellOrder),
 	)
+	return trade, true 
 }
+
